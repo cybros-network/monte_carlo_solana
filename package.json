@@ -1,0 +1,14 @@
+{
+  "name": "monte_carlo",
+  "version": "0.0.1",
+  "description": "",
+  "scripts": {},
+  "author": "Jasl",
+  "license": "MIT",
+  "dependencies": {
+    "@polkadot/util": "^12.5.1",
+    "@solana/buffer-layout": "^4.0.1",
+    "@solana/web3.js": "^1.78.5",
+    "buffer": "^6.0.3"
+  }
+}

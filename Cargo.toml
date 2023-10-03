@@ -1,0 +1,11 @@
+[package]
+name = "monte_carlo"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "monte_carlo"
+crate-type = ["cdylib", "lib"]
+
+[dependencies]
+solana-program = "1.17.0"
