@@ -6,9 +6,12 @@
   "author": "Jasl",
   "license": "MIT",
   "dependencies": {
+    "@polkadot/api": "^10.9.1",
     "@polkadot/util": "^12.5.1",
+    "@polkadot/util-crypto": "^12.5.1",
     "@solana/buffer-layout": "^4.0.1",
     "@solana/web3.js": "^1.78.5",
-    "buffer": "^6.0.3"
+    "buffer": "^6.0.3",
+    "dotenv": "^16.3.1"
   }
 }

@@ -1,6 +1,10 @@
+const { resolve } = require("path");
+require('dotenv').config({ path: resolve(__dirname, "../", ".env") })
+
 const web3 = require("@solana/web3.js");
 const BufferLayout = require("@solana/buffer-layout");
 const { Buffer } = require("buffer");
+const {Connection} = require("@solana/web3.js");
 
 const rustString = function rustString(property) {
     const rsl = BufferLayout.struct([
@@ -53,9 +57,7 @@ function getAlloc(type, fields) {
     return alloc;
 }
 
-const WS_ENDPOINT = "ws://localhost:8900";
-const HTTP_ENDPOINT = "http://localhost:8899";
-const connection = new web3.Connection(HTTP_ENDPOINT,{ wsEndpoint: WS_ENDPOINT });
+const connection = new Connection(process.env.SOL_HTTP_ENDPOINT, { wsEndpoint: process.env.SOL_WS_ENDPOINT });
 
 const secretKey = Uint8Array.from([
     202, 171, 192, 129, 150, 189, 204, 241, 142, 71, 205, 2, 81, 97, 2, 176, 48,
@@ -67,7 +69,7 @@ const signer = web3.Keypair.fromSecretKey(secretKey);
 
 console.log(signer.publicKey.toBase58());
 
-const programId = new web3.PublicKey("9TgeQ1HLSvHF47qYVoh2PMfpLEc2NVe1HEE6tp8b2bSg");
+const programId = new web3.PublicKey(process.env.SOL_PROGRAM_ID);
 const promptStruct = {
     index: 0,
     layout: BufferLayout.struct([
