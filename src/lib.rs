@@ -9,10 +9,10 @@ use borsh::{BorshDeserialize, BorshSerialize};
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone, PartialEq, Eq)]
 pub enum Instruction {
-    Config,
     Prompt {
         input: String
     },
+    Config {},
 }
 
 // declare and export the program's entrypoint
