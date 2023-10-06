@@ -16,11 +16,11 @@ pub enum Instruction {
 }
 
 // declare and export the program's entrypoint
-entrypoint!(hello);
+entrypoint!(process_instruction);
 
 // program entrypoint implementation
-pub fn hello(
-    program_id: &Pubkey,
+pub fn process_instruction(
+    _program_id: &Pubkey,
     accounts: &[AccountInfo],
     instruction_data: &[u8]
 ) -> ProgramResult {
@@ -30,7 +30,11 @@ pub fn hello(
         return Ok(())
     };
 
-    // log a message to the blockchain
+    let Some(signer) = accounts.iter().filter(|a| a.is_signer).next() else {
+       return Ok(())
+    };
+
+    msg!("PublicKey: 0x{}", hex::encode(signer.key.to_bytes()));
     msg!("Prompt: {}", input);
 
     // gracefully exit the program

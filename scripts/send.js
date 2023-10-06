@@ -1,10 +1,12 @@
 const { resolve } = require("path");
 require('dotenv').config({ path: resolve(__dirname, "../", ".env") })
 
-const web3 = require("@solana/web3.js");
+const { Keyring } = require("@polkadot/api");
+const { cryptoWaitReady } = require("@polkadot/util-crypto");
+const { u8aToHex } = require("@polkadot/util");
+const Solana = require("@solana/web3.js");
 const BufferLayout = require("@solana/buffer-layout");
 const { Buffer } = require("buffer");
-const {Connection} = require("@solana/web3.js");
 
 const rustString = function rustString(property) {
     const rsl = BufferLayout.struct([
@@ -57,7 +59,7 @@ function getAlloc(type, fields) {
     return alloc;
 }
 
-const connection = new Connection(process.env.SOL_HTTP_ENDPOINT, { wsEndpoint: process.env.SOL_WS_ENDPOINT });
+const connection = new Solana.Connection(process.env.SOL_HTTP_ENDPOINT, { wsEndpoint: process.env.SOL_WS_ENDPOINT });
 
 const secretKey = Uint8Array.from([
     202, 171, 192, 129, 150, 189, 204, 241, 142, 71, 205, 2, 81, 97, 2, 176, 48,
@@ -65,11 +67,12 @@ const secretKey = Uint8Array.from([
     221, 157, 190, 9, 145, 176, 130, 25, 43, 72, 107, 190, 229, 75, 88, 191, 136,
     7, 167, 109, 91, 170, 164, 186, 15, 142, 36, 12, 23,
 ]);
-const signer = web3.Keypair.fromSecretKey(secretKey);
+const signer = Solana.Keypair.fromSecretKey(secretKey);
 
+console.log(u8aToHex(signer.publicKey.toBytes()));
 console.log(signer.publicKey.toBase58());
 
-const programId = new web3.PublicKey(process.env.SOL_PROGRAM_ID);
+const programId = new Solana.PublicKey(process.env.SOL_PROGRAM_ID);
 const promptStruct = {
     index: 0,
     layout: BufferLayout.struct([
@@ -100,12 +103,12 @@ const params = {
 const data = Buffer.alloc(promptStruct.layout.span > 0 ? promptStruct.layout.span : getAlloc(promptStruct, params) );
 promptStruct.layout.encode(params, data);
 
-let transaction = new web3.Transaction({
+let transaction = new Solana.Transaction({
     feePayer: signer.publicKey,
 });
 let keys = [{ pubkey: signer.publicKey, isSigner: true, isWritable: true }];
 transaction.add(
-    new web3.TransactionInstruction({
+    new Solana.TransactionInstruction({
         keys,
         programId,
         data,
@@ -113,8 +116,18 @@ transaction.add(
 );
 
 (async () => {
+    await cryptoWaitReady().catch((e) => {
+        console.error(e.message);
+        process.exit(1);
+    });
+
+    const subKeyring = new Keyring({ type: "ed25519", ss58Format: 42 })
+    subKeyring.addFromSeed(signer.secretKey.subarray(0, 32), undefined, "ed25519");
+    console.log(`Substrate PubKey: ${u8aToHex(subKeyring.publicKeys[0])}`)
+    console.log(`Substrate Address: ${subKeyring.encodeAddress(signer.publicKey.toBytes())}`)
+
     console.log("Sending")
-    await web3.sendAndConfirmTransaction(connection, transaction, [
+    await Solana.sendAndConfirmTransaction(connection, transaction, [
         signer,
         signer,
     ]);
