@@ -1,7 +1,59 @@
 const web3 = require("@solana/web3.js");
 
-const { struct, blob, utf8 } = require("@solana/buffer-layout");
-const { stringToU8a } = require("@polkadot/util")
+const BufferLayout = require("@solana/buffer-layout");
+const { Buffer } = require("buffer");
+
+const rustString = function rustString(property) {
+    const rsl = BufferLayout.struct([
+        BufferLayout.u32('length'),
+        BufferLayout.u32('lengthPadding'),
+        BufferLayout.blob(BufferLayout.offset(BufferLayout.u32(), -8), 'chars')
+    ], property);
+    const _decode = rsl.decode.bind(rsl);
+    const _encode = rsl.encode.bind(rsl);
+    const rslShim = rsl;
+    rslShim.decode = function (b, offset) {
+        const data = _decode(b, offset);
+        return data['chars'].toString();
+    };
+    rslShim.encode = function (str, b, offset) {
+        const data = {
+            chars: Buffer.from(str, 'utf8')
+        };
+        return _encode(data, b, offset);
+    };
+    rslShim.alloc = function (str) {
+        return BufferLayout.u32().span + BufferLayout.u32().span + Buffer.from(str, 'utf8').length;
+    };
+    return rslShim;
+};
+
+function getAlloc(type, fields) {
+    const getItemAlloc = function getItemAlloc(item) {
+        if (item.span >= 0) {
+            return item.span;
+        } else if (typeof item.alloc === 'function') {
+            return item.alloc(fields[item.property]);
+        } else if ('count' in item && 'elementLayout' in item) {
+            var field = fields[item.property];
+            if (Array.isArray(field)) {
+                return field.length * getItemAlloc(item.elementLayout);
+            }
+        } else if ('fields' in item) {
+            // This is a `Structure` whose size needs to be recursively measured.
+            return getAlloc({
+                layout: item
+            }, fields[item.property]);
+        }
+        // Couldn't determine allocated size of layout
+        return 0;
+    };
+    let alloc = 0;
+    type.layout.fields.forEach(function (item) {
+        alloc += getItemAlloc(item);
+    });
+    return alloc;
+}
 
 const WS_ENDPOINT = "ws://localhost:8900";
 const HTTP_ENDPOINT = "http://localhost:8899";
@@ -18,16 +70,28 @@ const signer = web3.Keypair.fromSecretKey(secretKey);
 console.log(signer.publicKey.toBase58());
 
 const programId = new web3.PublicKey("9TgeQ1HLSvHF47qYVoh2PMfpLEc2NVe1HEE6tp8b2bSg");
-// let helloStruct = utf8(2048, "input") // struct([utf8(2048, "input")]);
-// let params = {
-//     input: "Hello",
-// };
+const promptStruct = {
+    index: 1,
+    layout: BufferLayout.struct([
+        BufferLayout.u32('instruction'),
+        rustString("input"),
+    ])
+};
 
-// let data = Buffer.alloc(helloStruct.span > 0 ? helloStruct.span : 4096);
-// let layoutFields = Object.assign({}, params);
-// helloStruct.encode(layoutFields, data);
+console.log(promptStruct.layout.span)
 
-const data = Buffer.from(stringToU8a("Hello"));
+const params = {
+    input: "Hello"
+};
+const data = Buffer.alloc(promptStruct.layout.span > 0 ? promptStruct.layout.span : getAlloc(promptStruct, params) );
+promptStruct.layout.encode({
+    instruction: 1,
+    input: "Hello"
+}, data);
+
+console.log(data)
+
+//const data = Buffer.from(stringToU8a("Hello"));
 
 let transaction = new web3.Transaction({
     feePayer: signer.publicKey,

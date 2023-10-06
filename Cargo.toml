@@ -8,4 +8,6 @@ name = "monte_carlo"
 crate-type = ["cdylib", "lib"]
 
 [dependencies]
+borsh = "0.10.3"
 solana-program = "1.17.0"
+thiserror = "1.0.49"

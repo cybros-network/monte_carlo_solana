@@ -5,19 +5,33 @@ use solana_program::{
     pubkey::Pubkey,
     msg,
 };
+use borsh::{BorshDeserialize, BorshSerialize};
+
+#[derive(BorshSerialize, BorshDeserialize, Debug, Clone, PartialEq, Eq)]
+pub enum Instruction {
+    Config,
+    Prompt {
+        input: String
+    },
+}
 
 // declare and export the program's entrypoint
 entrypoint!(hello);
 
-// program entrypoint's implementation
+// program entrypoint implementation
 pub fn hello(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
     instruction_data: &[u8]
 ) -> ProgramResult {
-    let input = String::from_utf8(instruction_data.to_vec()).expect("Should be UTF-8 string");
+    let ins = Instruction::deserialize(&mut &instruction_data[..])?;
+
+    let Instruction::Prompt { input } = ins else {
+        return Ok(())
+    };
+
     // log a message to the blockchain
-    msg!("{}", input);
+    msg!("Prompt: {}", input);
 
     // gracefully exit the program
     Ok(())
