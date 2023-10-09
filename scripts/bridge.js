@@ -97,6 +97,9 @@ async function main() {
     const subscriptionId = connection.onLogs(
         programId,
         async (logs, _ctx) => {
+            console.log("")
+            console.log(logs)
+
             const signerPublicKey = logs.logs
                 .filter(line => line.startsWith(publicKeyLogPattern))
                 .map(line => line.substring(publicKeyLogPattern.length))[0];
@@ -133,7 +136,7 @@ async function main() {
                 return;
             }
 
-            console.info();
+            console.info("----");
             console.info(`Sender public key: ${signerPublicKey}`);
             console.info(`Sender Sol address: ${new Solana.PublicKey(hexToU8a(signerPublicKey)).toBase58()}`)
             console.info(`Sender Sub address: ${beneficiary}`);
