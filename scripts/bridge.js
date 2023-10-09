@@ -1,11 +1,12 @@
 const { resolve } = require("path");
 require('dotenv').config({ path: resolve(__dirname, "../", ".env") })
+console.log(process.env)
 
 const { ApiPromise, HttpProvider, Keyring, WsProvider } = require("@polkadot/api");
 const { cryptoWaitReady } = require("@polkadot/util-crypto");
 
 const Solana = require("@solana/web3.js");
-const {u8aToHex, hexToU8a} = require("@polkadot/util");
+const { hexToU8a } = require("@polkadot/util");
 
 const jobPoolId = parseInt(process.env.JOB_POOL_ID)
 if (Number.isNaN(jobPoolId) || jobPoolId <= 0) {
