@@ -4,7 +4,7 @@ require('dotenv').config({ path: resolve(__dirname, "../", ".env") })
 const { Keyring } = require("@polkadot/api");
 const { cryptoWaitReady } = require("@polkadot/util-crypto");
 const { hexToU8a } = require("@polkadot/util");
-const Solana = require("@solana/web3.js");
+const solana = require("@solana/web3.js");
 
 async function main() {
     await cryptoWaitReady().catch((e) => {
@@ -12,32 +12,38 @@ async function main() {
         process.exit(1);
     });
 
-    const connection = new Solana.Connection(process.env.SOL_HTTP_ENDPOINT, { wsEndpoint: process.env.SOL_WS_ENDPOINT });
+    const connection = new solana.Connection(process.env.SOL_HTTP_ENDPOINT, { wsEndpoint: process.env.SOL_WS_ENDPOINT });
 
-    const dataLogPattern = "Program log: Prompt: ";
     const publicKeyLogPattern = "Program log: PublicKey: ";
-    const programId = new Solana.PublicKey(process.env.SOL_PROGRAM_ID);
+    const dataLogPattern = "Program log: Data: ";
+    const dataHashLogPattern = "Program log: Data hash: ";
+    const programId = new solana.PublicKey(process.env.SOL_PROGRAM_ID);
     const subscriptionId = connection.onLogs(
         programId,
         (logs, _ctx) => {
             console.log(logs)
-            const signerPublicKey = logs.logs
+
+            const rawSignerPublicKey = logs.logs
                 .filter(line => line.startsWith(publicKeyLogPattern))
                 .map(line => line.substring(publicKeyLogPattern.length))[0];
-            const dataString = logs.logs
+            const rawData = logs.logs
                 .filter(line => line.startsWith(dataLogPattern))
                 .map(line => line.substring(dataLogPattern.length))[0];
+            const rawDataHash = logs.logs
+                .filter(line => line.startsWith(dataHashLogPattern))
+                .map(line => line.substring(dataHashLogPattern.length))[0];
 
-            if (!(signerPublicKey && dataString)) {
+            if (!(rawSignerPublicKey && rawData && rawDataHash)) {
                 return;
             }
 
-            const solAddress = new Solana.PublicKey(hexToU8a(signerPublicKey)).toBase58();
+            const solAddress = new solana.PublicKey(hexToU8a(rawSignerPublicKey)).toBase58();
             const subKeyring = new Keyring({ type: "ed25519", ss58Format: 42 });
-            const subAddress = subKeyring.encodeAddress(signerPublicKey);
+            const subAddress = subKeyring.encodeAddress(rawSignerPublicKey);
 
-            console.log(`Sender: ${solAddress} ${signerPublicKey} ${subAddress}`);
-            console.log(`Input: ${dataString}`);
+            console.log(`Sender: ${solAddress} ${rawSignerPublicKey} ${subAddress}`);
+            console.log(`Data: ${rawData}`);
+            console.log(`Data hash: ${rawDataHash.substring(0, 36)}`);
         },
         "confirmed"
     );

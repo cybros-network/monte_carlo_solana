@@ -10,5 +10,6 @@ crate-type = ["cdylib", "lib"]
 [dependencies]
 borsh = "0.10.3"
 hex = "0.4.3"
+blake2 = "0.10.6"
 solana-program = "1.17.1"
 thiserror = "1.0.49"

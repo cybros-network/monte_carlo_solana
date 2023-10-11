@@ -1,24 +1,25 @@
 const { resolve } = require("path");
-require('dotenv').config({ path: resolve(__dirname, "../", ".env") })
+require("dotenv").config({ path: resolve(__dirname, "../", ".env") })
 
+const blake = require('blakejs')
 const { Keyring } = require("@polkadot/api");
 const { cryptoWaitReady } = require("@polkadot/util-crypto");
 const { u8aToHex } = require("@polkadot/util");
-const Solana = require("@solana/web3.js");
-const BufferLayout = require("@solana/buffer-layout");
+const solana = require("@solana/web3.js");
+const bufferLayout = require("@solana/buffer-layout");
 const { Buffer } = require("buffer");
 
 const rustString = function rustString(property) {
-    const rsl = BufferLayout.struct([
-        BufferLayout.u32('length'),
-        BufferLayout.blob(BufferLayout.offset(BufferLayout.u32(), -4), 'chars')
+    const rsl = bufferLayout.struct([
+        bufferLayout.u32("length"),
+        bufferLayout.blob(bufferLayout.offset(bufferLayout.u32(), -4), "chars")
     ], property);
     const _decode = rsl.decode.bind(rsl);
     const _encode = rsl.encode.bind(rsl);
     const rslShim = rsl;
     rslShim.decode = function (b, offset) {
         const data = _decode(b, offset);
-        return data['chars'].toString();
+        return data["chars"].toString();
     };
     rslShim.encode = function (str, b, offset) {
         const data = {
@@ -27,7 +28,7 @@ const rustString = function rustString(property) {
         return _encode(data, b, offset);
     };
     rslShim.alloc = function (str) {
-        return BufferLayout.u32().span + Buffer.from(str, 'utf8').length;
+        return bufferLayout.u32().span + Buffer.from(str, "utf8").length;
     };
     return rslShim;
 };
@@ -36,20 +37,20 @@ function getAlloc(type, fields) {
     const getItemAlloc = function getItemAlloc(item) {
         if (item.span >= 0) {
             return item.span;
-        } else if (typeof item.alloc === 'function') {
+        } else if (typeof item.alloc === "function") {
             return item.alloc(fields[item.property]);
-        } else if ('count' in item && 'elementLayout' in item) {
+        } else if ("count" in item && "elementLayout" in item) {
             var field = fields[item.property];
             if (Array.isArray(field)) {
                 return field.length * getItemAlloc(item.elementLayout);
             }
-        } else if ('fields' in item) {
+        } else if ("fields" in item) {
             // This is a `Structure` whose size needs to be recursively measured.
             return getAlloc({
                 layout: item
             }, fields[item.property]);
         }
-        // Couldn't determine allocated size of layout
+        // Couldn"t determine allocated size of layout
         return 0;
     };
     let alloc = 0;
@@ -59,7 +60,7 @@ function getAlloc(type, fields) {
     return alloc;
 }
 
-const connection = new Solana.Connection(process.env.SOL_HTTP_ENDPOINT, { wsEndpoint: process.env.SOL_WS_ENDPOINT });
+const connection = new solana.Connection(process.env.SOL_HTTP_ENDPOINT, { wsEndpoint: process.env.SOL_WS_ENDPOINT });
 
 const secretKey = Uint8Array.from([
     202, 171, 192, 129, 150, 189, 204, 241, 142, 71, 205, 2, 81, 97, 2, 176, 48,
@@ -67,16 +68,16 @@ const secretKey = Uint8Array.from([
     221, 157, 190, 9, 145, 176, 130, 25, 43, 72, 107, 190, 229, 75, 88, 191, 136,
     7, 167, 109, 91, 170, 164, 186, 15, 142, 36, 12, 23,
 ]);
-const signer = Solana.Keypair.fromSecretKey(secretKey);
+const signer = solana.Keypair.fromSecretKey(secretKey);
 
 console.log(u8aToHex(signer.publicKey.toBytes()));
 console.log(signer.publicKey.toBase58());
 
-const programId = new Solana.PublicKey(process.env.SOL_PROGRAM_ID);
+const programId = new solana.PublicKey(process.env.SOL_PROGRAM_ID);
 const promptStruct = {
     index: 0,
-    layout: BufferLayout.struct([
-        BufferLayout.u8('instruction'),
+    layout: bufferLayout.struct([
+        bufferLayout.u8("instruction"),
         rustString("input"),
     ])
 };
@@ -103,12 +104,12 @@ const params = {
 const data = Buffer.alloc(promptStruct.layout.span > 0 ? promptStruct.layout.span : getAlloc(promptStruct, params) );
 promptStruct.layout.encode(params, data);
 
-let transaction = new Solana.Transaction({
+let transaction = new solana.Transaction({
     feePayer: signer.publicKey,
 });
 let keys = [{ pubkey: signer.publicKey, isSigner: true, isWritable: true }];
 transaction.add(
-    new Solana.TransactionInstruction({
+    new solana.TransactionInstruction({
         keys,
         programId,
         data,
@@ -122,12 +123,13 @@ transaction.add(
     });
 
     const subKeyring = new Keyring({ type: "ed25519", ss58Format: 42 })
-    subKeyring.addFromSeed(signer.secretKey.subarray(0, 32), undefined, "ed25519");
-    console.log(`Substrate PubKey: ${u8aToHex(subKeyring.publicKeys[0])}`)
     console.log(`Substrate Address: ${subKeyring.encodeAddress(signer.publicKey.toBytes())}`)
 
+    const dataHash = blake.blake2sHex(data).slice(0, 34)
+    console.log(`Data hash: 0x${dataHash}`)
+
     console.log("Sending")
-    await Solana.sendAndConfirmTransaction(connection, transaction, [
+    await solana.sendAndConfirmTransaction(connection, transaction, [
         signer,
         signer,
     ]);

@@ -3,10 +3,10 @@ require('dotenv').config({ path: resolve(__dirname, "../", ".env") })
 console.log(process.env)
 
 const { ApiPromise, HttpProvider, Keyring, WsProvider } = require("@polkadot/api");
+const { hexToU8a } = require("@polkadot/util");
 const { cryptoWaitReady } = require("@polkadot/util-crypto");
 
-const Solana = require("@solana/web3.js");
-const { hexToU8a } = require("@polkadot/util");
+const solana = require("@solana/web3.js");
 
 const jobPoolId = parseInt(process.env.JOB_POOL_ID)
 if (Number.isNaN(jobPoolId) || jobPoolId <= 0) {
@@ -91,32 +91,37 @@ async function main() {
     nonce = nonce.toNumber();
     console.log(`Nonce: ${nonce}`);
 
-    const connection = new Solana.Connection(process.env.SOL_HTTP_ENDPOINT, { wsEndpoint: process.env.SOL_WS_ENDPOINT });
-    const dataLogPattern = "Program log: Prompt: ";
+    const connection = new solana.Connection(process.env.SOL_HTTP_ENDPOINT, { wsEndpoint: process.env.SOL_WS_ENDPOINT });
     const publicKeyLogPattern = "Program log: PublicKey: ";
-    const programId = new Solana.PublicKey(process.env.SOL_PROGRAM_ID);
+    const dataLogPattern = "Program log: Data: ";
+    const dataHashLogPattern = "Program log: Data hash: ";
+    const programId = new solana.PublicKey(process.env.SOL_PROGRAM_ID);
     const subscriptionId = connection.onLogs(
         programId,
         async (logs, _ctx) => {
             console.log("")
             console.log(logs)
 
-            const signerPublicKey = logs.logs
+            const rawSignerPublicKey = logs.logs
                 .filter(line => line.startsWith(publicKeyLogPattern))
                 .map(line => line.substring(publicKeyLogPattern.length))[0];
-            const dataString = logs.logs
+            const rawData = logs.logs
                 .filter(line => line.startsWith(dataLogPattern))
                 .map(line => line.substring(dataLogPattern.length))[0];
+            const rawDataHash = logs.logs
+                .filter(line => line.startsWith(dataHashLogPattern))
+                .map(line => line.substring(dataHashLogPattern.length))[0];
 
-            if (!(signerPublicKey && dataString)) {
+            if (!(rawSignerPublicKey && rawData && rawDataHash)) {
                 return;
             }
 
             const beneficiary = (() => {
                 try {
                     const subKeyring = new Keyring({ type: "ed25519", ss58Format: 42 });
-                    return subKeyring.encodeAddress(signerPublicKey);
-                } catch (_e) {
+                    return subKeyring.encodeAddress(rawSignerPublicKey);
+                } catch (e) {
+                    console.error(e.message)
                     return null
                 }
             })();
@@ -127,8 +132,9 @@ async function main() {
 
             const data = (() => {
                 try {
-                    return JSON.parse(dataString)
-                } catch (_e) {
+                    return JSON.parse(rawData)
+                } catch (e) {
+                    console.error(e.message)
                     return null
                 }
             })();
@@ -137,11 +143,26 @@ async function main() {
                 return;
             }
 
+            const dataHash = (() => {
+                try {
+                    console.log(rawDataHash.substring(0, 34))
+                    return api.createType("Option<[u8;16]>", hexToU8a(rawDataHash.substring(0, 36)));
+                } catch (e) {
+                    console.error(e.message)
+                    return null
+                }
+            })();
+            if (!dataHash) {
+                console.error("Data hash is invalid, skip.");
+                return;
+            }
+
             console.info("----");
-            console.info(`Sender public key: ${signerPublicKey}`);
-            console.info(`Sender Sol address: ${new Solana.PublicKey(hexToU8a(signerPublicKey)).toBase58()}`)
+            console.info(`Sender public key: ${rawSignerPublicKey}`);
+            console.info(`Sender Sol address: ${new solana.PublicKey(hexToU8a(rawSignerPublicKey)).toBase58()}`)
             console.info(`Sender Sub address: ${beneficiary}`);
-            console.info(`Input: ${dataString}`);
+            console.info(`Data: ${rawData}`);
+            console.info(`Data hash: ${rawDataHash.substring(0, 36)}`);
 
             const input = JSON.stringify({
                 e2e: false,
@@ -155,7 +176,7 @@ async function main() {
 
             console.info(`Sending offchainComputingPool.createJob(poolId, policyId, uniqueTrackId, beneficiary, implSpecVersion, input, softExpiresIn)`);
             const txPromise = api.tx.offchainComputingPool.createJob(
-                jobPoolId, jobPolicyId, null, beneficiary, jobSpecVersion, input, null
+                jobPoolId, jobPolicyId, dataHash, beneficiary, jobSpecVersion, input, null
             );
 
             const callHash = txPromise.toHex();

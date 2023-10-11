@@ -6,6 +6,7 @@ use solana_program::{
     msg,
 };
 use borsh::{BorshDeserialize, BorshSerialize};
+use blake2::{Blake2s256, Digest};
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone, PartialEq, Eq)]
 pub enum Instruction {
@@ -34,8 +35,12 @@ pub fn process_instruction(
        return Ok(())
     };
 
+    let mut data_hasher = Blake2s256::new();
+    data_hasher.update(instruction_data);
+    let instruction_data_hash = data_hasher.finalize();
     msg!("PublicKey: 0x{}", hex::encode(signer.key.to_bytes()));
-    msg!("Prompt: {}", input);
+    msg!("Data hash: 0x{}", hex::encode(instruction_data_hash));
+    msg!("Data: {}", input);
 
     // gracefully exit the program
     Ok(())
